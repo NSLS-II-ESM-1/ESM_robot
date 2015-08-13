@@ -87,7 +87,46 @@ def rolling_record_motion(fp, run_number, buffer_len=10):
         raise e
     finally:
         fp.enable.value = False
+
         
+class ESM_Robot:
+    def __init__(self, feed, claw, manip):
+        # eventually this will have buckets of state
+        # dictionary mapping the feed socket numbers to motor
+        # positions
+        self.pos_map = {0: 0, 1:5.5}
+        self.feed = feed
+        self.claw = claw
+        self.manip = manip
+
+    @property
+    def has_sample(self):
+        """If the claw is holding a sample
+        
+        """
+        # eventually, this should read from the IO pv
+        return False
+
+    def put_in_pos(self, n):
+        """Put sample in position n
+
+        Assuming the claw has a sample grasped, put it 
+        in the given position
+        """
+        if not self.has_sample:
+            raise RuntimeError("Claw does not have sample")
+        self.set_feed(n)
+        # move arm forward
+        # release claw
+        pass
+
+    def set_feed_pos(self, n):
+        """Put position n in a place where the claw can reach
+        
+        
+        """
+        self.feed.set(self.pos_map[n], wait=True)
+
 
 def simple_rotation():
     """Simple test
