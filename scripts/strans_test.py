@@ -90,6 +90,10 @@ def rolling_record_motion(fp, run_number, buffer_len=10):
         
 
 def simple_rotation():
+    """Simple test
+    
+    Rotates claw from 0 deg to 5 deg and back to 0.
+    """
     rot.set(0, wait=True)
     rot.set(5, wait=True)
     
@@ -98,6 +102,56 @@ def simple_rotation():
 
 def run_test(func, count, record_file, fp, fname='claw', 
              buffer_len=10, cleanup=False):
+    """Test transfer reliability
+
+    This is a helper function to manage the repeatedly running
+    a test function to test the behavior of the sample transfer
+    functionality.  This function manages:
+    
+      - repeatedly calling the test function
+      - recording the number of success/failure
+      - managing a rolling buffer of movies of the transfer
+
+    Parameters
+    ----------
+    func : callable
+        The function to call many times, must take no arguments ::
+           
+           def func():
+               pass
+               
+        The return value is ignored.  To indicate failure the test
+        function should raise an exception.
+
+    count : int
+        The number of time to call the test function
+
+    record_file : str
+        Path to csv file to append results to.  The columns of
+        the csv must be [count,success,fail] which are the number
+        of time it was told to run, the number of successes and the
+        number of failures (which will always be 0 or 1).
+
+    fp : ophyd.controls.areadetector.plugins.FilePlugin
+        The file plugin of the camera to use for recording video of
+        the transfer.
+
+        The movies will be saved in folders called ``movies_NNNNN`` in
+        the same directory as ``record_file``.  These files can optionally
+        be removed if all call to the test function succeed.
+
+    fname : str, optional
+        Prefix to use in naming saved images.  Defaults to 'claw'
+
+    buffer_len : int, optional
+        The number of movies before a failed test to save.  This is
+        implemented as a rolling buffer of folders in the ``movies_*``
+        folders.  Defaults to 10
+
+    cleanup : bool, optional
+        If movies from fully successful runs should be deleted.  Defaults
+        to `False`
+    """
     record_file = os.path.abspath(record_file)
     run_number = 0
     with open(record_file, 'r') as fin:
@@ -157,7 +211,32 @@ def run_test(func, count, record_file, fp, fname='claw',
             print("Last {success_count} runs succedded "
                   "without failure".format(success_count=success_count))
 
-def compute_mtbf(fname):
+def compute_num_between_failures(fname):
+    """Compute reliability of transfer from CSV
+
+    This is a helper function to process the number of successful
+    transfers between failures.
+
+    It assumes that the input CSV has at least the columns 'fail' and
+    'success'.  Each row is the output of a single `run_test`
+    invocation The 'success' column is the number of time the test ran
+    before a failure and the 'fail' column has a 1 if there was a test
+    failure and 0 otherwise.
+
+    Parameters
+    ----------
+    fname : str
+        Path to CSV file.  Expected structure described above.
+
+    Returns : pd.Series
+
+        The number of successful trials between each failure.  Last
+        and first entries may be unreliable due to edge effects (no
+        observed previous failure for first number, and does not
+        currently indicate of the last `run_test` run ended in failure
+        or not)
+
+    """
     df = pd.read_csv(fname)
     df['fail_index'] = df.fail.cumsum()
     return df.groupby('fail_index').sum().success
